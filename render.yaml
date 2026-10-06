@@ -1,20 +1,25 @@
+# Render Blueprint: New + > Blueprint > select this repo.
 services:
-  # Flask Backend API Service
+  # Flask API
   - type: web
-    name: adm-backend
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT backend.app:app
+    name: adm-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt gunicorn
+    startCommand: gunicorn backend.app:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.12.3   # numpy 1.26.4 has no wheels for Python 3.13+
 
-  # Vite Frontend Static Site / Web Service
+  # Frontend (static); forwards /api/* to the API service above
   - type: web
     name: adm-frontend
-    env: node
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: ./frontend/dist
-    envVars:
-      - key: NODE_VERSION
-        value: 20.0.0
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://adm-api.onrender.com/api/*

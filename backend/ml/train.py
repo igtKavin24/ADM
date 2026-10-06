@@ -4,7 +4,7 @@ import joblib
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, confusion_matrix
 from backend.data.preprocessor import load_and_preprocess_data
-from backend.config import MODEL_DIR
+from backend.config import MODEL_DIR, RANDOM_SEED
 
 try:
     import lightgbm as lgb
@@ -17,9 +17,9 @@ def evaluate_model(model, X_test, y_test):
     y_pred = model.predict(X_test)
     acc = accuracy_score(y_test, y_pred)
     prec, rec, f1, _ = precision_recall_fscore_support(y_test, y_pred, average='macro', zero_division=0)
-    cm = confusion_matrix(y_test, y_pred).tolist()
+    cm = confusion_matrix(y_test, y_pred, labels=[0, 1, 2, 3]).tolist()
     
-    per_class_prec, per_class_rec, per_class_f1, _ = precision_recall_fscore_support(y_test, y_pred, average=None, zero_division=0)
+    per_class_prec, per_class_rec, per_class_f1, _ = precision_recall_fscore_support(y_test, y_pred, average=None, labels=[0, 1, 2, 3], zero_division=0)
     
     metrics = {
         'accuracy': acc,
@@ -31,6 +31,8 @@ def evaluate_model(model, X_test, y_test):
             'recall': per_class_rec.tolist(),
             'f1': per_class_f1.tolist()
         },
+        'majority_baseline_accuracy': float(y_test.value_counts(normalize=True).max()),
+        'test_class_counts': {int(k): int(v) for k, v in y_test.value_counts().sort_index().items()},
         'confusion_matrix': cm
     }
     return metrics
@@ -40,15 +42,15 @@ def train_all():
     X_train, X_val, X_test, y_train, y_val, y_test = load_and_preprocess_data()
     
     print("Training Logistic Regression baseline...")
-    lr = LogisticRegression(max_iter=1000, random_state=42)
+    lr = LogisticRegression(max_iter=1000, random_state=RANDOM_SEED)
     lr.fit(X_train, y_train)
     lr_metrics = evaluate_model(lr, X_test, y_test)
     
     print("Training Gradient Boosting model...")
     if HAS_LGB:
-        gbm = lgb.LGBMClassifier(random_state=42)
+        gbm = lgb.LGBMClassifier(random_state=RANDOM_SEED)
     else:
-        gbm = HistGradientBoostingClassifier(random_state=42)
+        gbm = HistGradientBoostingClassifier(random_state=RANDOM_SEED)
         
     gbm.fit(X_train, y_train)
     gbm_metrics = evaluate_model(gbm, X_test, y_test)

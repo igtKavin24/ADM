@@ -1,55 +1,38 @@
-import copy
-from backend.graph.simulation import OutageSimulator
-from backend.graph.network import PowerGrid
+from backend.engine.experiment import make_scenarios, evaluate, select_targets
+from backend.config import RANDOM_SEED
+import numpy as np
 
-class InterventionEngine:
-    def __init__(self, config_types):
-        self.intervention_types = config_types
-        
-    def get_candidates(self, graph, analysis, priorities):
-        candidates = []
-        for p in priorities:
-            node_id = p['node_id']
-            neighbors = graph.get_neighbors(node_id)
-            if neighbors:
-                for n in neighbors:
-                    for eid, edata in graph.edges.items():
-                        if (edata['from'] == node_id and edata['to'] == n) or (edata['from'] == n and edata['to'] == node_id):
-                            candidates.append({
-                                'type': 'reinforce_line',
-                                'target_edge': eid,
-                                'cost': 1,
-                                'score': p['priority_score']
-                            })
-        unique_candidates = []
-        seen = set()
-        for c in candidates:
-            if c['target_edge'] not in seen:
-                seen.add(c['target_edge'])
-                unique_candidates.append(c)
-                
-        return sorted(unique_candidates, key=lambda x: x['score'], reverse=True)
-        
-    def evaluate_intervention(self, intervention, graph):
-        sim_grid = copy.deepcopy(graph)
-        if intervention['type'] == 'reinforce_line':
-            eid = intervention['target_edge']
-            if eid in sim_grid.edges:
-                sim_grid.edges[eid]['thermal_limit'] *= 1.2
-        return 0.1 
-        
-    def optimize(self, budget, candidates):
-        selected = []
-        current_cost = 0
-        for c in candidates:
-            if current_cost + c['cost'] <= budget:
-                selected.append(c)
-                current_cost += c['cost']
-        return selected
 
-    def compare_human_vs_system(self, human_choices, system_choices, graph):
-        return {
-            'human_cost': sum(c.get('cost', 1) for c in human_choices),
-            'system_cost': sum(c.get('cost', 1) for c in system_choices),
-            'system_advantage': 0.15 
-        }
+def get_candidates(ranking, limit=8):
+    return [{
+        'id': r['id'], 'name': f"Harden {r['name']}", 'target': r['name'],
+        'type': 'harden_substation', 'cost': 1, 'priority_score': r['priority_score'],
+    } for r in ranking[:limit]]
+
+
+def evaluate_selection(simulator, ranking, selected_ids, n_scenarios=200):
+    scenarios = make_scenarios(ranking, n_scenarios)
+    base = evaluate(simulator, [], scenarios)
+    res = evaluate(simulator, selected_ids, scenarios)
+    return {
+        'selected': res['protected'], 'total_cost': len(res['protected']),
+        'baseline': base, 'outcome': res,
+        'load_served_gain': round(res['avg_load_served'] - base['avg_load_served'], 4),
+        'affected_reduction': round(base['avg_affected'] - res['avg_affected'], 3),
+    }
+
+
+def optimize(simulator, ranking, budget, n_scenarios=200):
+    """Recommend the top-priority substations and compare against a highest-degree baseline."""
+    rng = np.random.RandomState(RANDOM_SEED)
+    system = select_targets('jarasandha_optimized', budget, ranking, rng)
+    baseline = select_targets('degree_based', budget, ranking, rng)
+    sys_eval = evaluate_selection(simulator, ranking, system, n_scenarios)
+    base_eval = evaluate_selection(simulator, ranking, baseline, n_scenarios)
+    return {
+        'budget': budget,
+        'system_recommendation': [c for c in get_candidates(ranking, len(ranking)) if c['id'] in system],
+        'system': sys_eval, 'baseline': base_eval, 'baseline_name': 'Highest-degree substations',
+        'advantage_percent': round((sys_eval['outcome']['avg_load_served']
+                                    - base_eval['outcome']['avg_load_served']) * 100, 2),
+    }

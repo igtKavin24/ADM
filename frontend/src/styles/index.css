@@ -133,3 +133,14 @@ h1, h2, h3, h4, h5, h6, .cinzel { font-family: 'Cinzel', serif; font-weight: 600
 /* Transitions */
 .page-enter { opacity: 0; transform: translateY(10px); }
 .page-enter-active { opacity: 1; transform: translateY(0); transition: opacity 300ms, transform 300ms; }
+
+/* Shared page helpers */
+.stat-value { font-size: 1.8rem; font-family: 'Cinzel', serif; }
+.stat-label { color: var(--color-text-secondary); font-size: 0.8rem; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.data-table th { text-align: left; color: var(--color-accent-gold); font-family: 'Cinzel', serif; padding: 6px 8px; border-bottom: 1px solid var(--color-border-strong); }
+.data-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); }
+.data-table tbody tr:hover { background: var(--color-bg-hover); }
+.input { background: var(--color-bg-surface); color: var(--color-text-primary); border: 1px solid var(--color-border-strong); border-radius: var(--radius-btn); padding: 8px 12px; font-family: inherit; }
+.controls { display: flex; gap: var(--spacing-12); align-items: center; flex-wrap: wrap; margin-bottom: var(--spacing-16); }
+.note { color: var(--color-text-dim); font-size: 0.8rem; margin-top: var(--spacing-8); }

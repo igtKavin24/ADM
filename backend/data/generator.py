@@ -90,7 +90,7 @@ def generate_dataset():
             risk_score = (max_rho * 0.5) + (n_overloaded * 0.3) + (n_disconnected * 0.5)
             risk_score += np.random.normal(0, 0.1)
             
-            # Adjusted thresholds to aim for 60/20/12/8 distribution
+            # Resulting class mix is skewed towards CRITICAL (~71%) because load grows with step
             if risk_score < 0.65:
                 target = 0
             elif risk_score < 1.05:

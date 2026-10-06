@@ -30,14 +30,8 @@ def _get_risk_level(prob_dict):
 
 def predict(features_dict, model_name='gradient_boosting'):
     model, scaler, feature_names = load_model(model_name)
-    df = pd.DataFrame([features_dict])
-    
-    for col in feature_names:
-        if col not in df.columns:
-            df[col] = 0.0
-    df = df[feature_names]
-    
-    X_scaled = scaler.transform(df)
+    df = pd.DataFrame([features_dict]).reindex(columns=feature_names, fill_value=0.0)
+    X_scaled = pd.DataFrame(scaler.transform(df), columns=feature_names)
     pred_class = int(model.predict(X_scaled)[0])
     probs = model.predict_proba(X_scaled)[0]
     

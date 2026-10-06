@@ -21,30 +21,20 @@ def get_feature_importance(model_name='gradient_boosting'):
 def explain_prediction(features_dict, model_name='gradient_boosting'):
     model, scaler, feature_names = load_model(model_name)
     
-    df = pd.DataFrame([features_dict])
-    for col in feature_names:
-        if col not in df.columns:
-            df[col] = 0.0
-    df = df[feature_names]
-    
-    X_scaled = scaler.transform(df)[0]
-    
+    df = pd.DataFrame([features_dict]).reindex(columns=feature_names, fill_value=0.0)
+    X_scaled = pd.DataFrame(scaler.transform(df), columns=feature_names)
+
     try:
         import shap
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(X_scaled.reshape(1, -1))
-        if isinstance(shap_values, list):
-            sv = np.abs(np.array(shap_values)).mean(axis=0)[0]
-        else:
-            sv = np.abs(shap_values[0])
-            
+        sv = np.array(shap.TreeExplainer(model).shap_values(X_scaled))
+        # shap returns (classes, 1, features) or (1, features, classes) depending on version
+        sv = np.abs(sv).squeeze()
+        if sv.ndim == 2:
+            sv = sv.mean(axis=0 if sv.shape[1] == len(feature_names) else 1)
         contributions = list(zip(feature_names, sv))
     except Exception:
         global_imp = dict(get_feature_importance(model_name))
-        contributions = []
-        for i, col in enumerate(feature_names):
-            val = abs(X_scaled[i]) * global_imp.get(col, 0)
-            contributions.append((col, val))
-            
+        contributions = [(c, abs(float(X_scaled.iloc[0][c])) * global_imp.get(c, 0)) for c in feature_names]
+
     contributions.sort(key=lambda x: x[1], reverse=True)
-    return contributions[:10]
+    return [(f, float(v)) for f, v in contributions[:10]]

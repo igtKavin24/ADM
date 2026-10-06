@@ -1,34 +1,26 @@
-
-import { createNetworkGraph } from '../components/networkGraph.js';
 import { api } from '../api.js';
-import { createLoader } from '../components/loader.js';
-import { createCard } from '../components/card.js';
+import { createNetworkGraph } from '../components/networkGraph.js';
+import { page, text } from '../components/page.js';
+import { pct } from '../utils/format.js';
 
 export function networkPage() {
-  const container = document.createElement('div');
-  container.style.height = 'calc(100vh - 64px)';
-  container.style.display = 'flex';
-  container.style.flexDirection = 'column';
-  
-  container.innerHTML = '<h1 class="cinzel" style="margin-bottom:var(--spacing-16);">NETWORK TOPOLOGY</h1>';
-  
-  const graphContainer = document.createElement('div');
-  graphContainer.style.flex = '1';
-  graphContainer.style.position = 'relative';
-  graphContainer.style.background = 'var(--color-bg-card)';
-  graphContainer.style.border = '1px solid var(--color-border)';
-  graphContainer.style.borderRadius = 'var(--radius-card)';
-  
-  graphContainer.appendChild(createLoader('Initializing Graph...'));
-  container.appendChild(graphContainer);
-  
-  api.getNetwork().then(data => {
-    createNetworkGraph(data, graphContainer, {
-      width: graphContainer.clientWidth || 800,
-      height: graphContainer.clientHeight || 600,
-      onClick: (n) => console.log('Node clicked', n)
+  return page('NETWORK TOPOLOGY', async () => {
+    const [net, vuln] = await Promise.all([api.getNetwork(), api.getVulnerabilities()]);
+    const byId = Object.fromEntries(vuln.vulnerabilities.map(v => [v.id, v]));
+    const risks = Object.fromEntries(vuln.vulnerabilities.map(v => [v.id, v.risk_score]));
+
+    const root = document.createElement('div');
+    const box = document.createElement('div');
+    box.style.cssText = 'height:520px;background:var(--color-bg-card);border:1px solid var(--color-border);border-radius:var(--radius-card)';
+    const info = text('p', 'Click a substation for details. Colour = line loading (green <60%, gold <80%, red ≥80%).', 'margin-top:12px;color:var(--color-text-secondary)');
+    createNetworkGraph(net, box, {
+      risks,
+      onClick: n => {
+        const v = byId[n.id];
+        info.textContent = `${n.name} (${n.type}) — loading ${pct(v.risk_score, 0)}, priority #${v.rank}. ${v.explanation}`;
+      },
     });
+    root.append(box, info);
+    return root;
   });
-  
-  return container;
 }

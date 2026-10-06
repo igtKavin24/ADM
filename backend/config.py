@@ -13,11 +13,11 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # ─── Dataset Configuration ───────────────────────────────────────
-DATASET_NAME = "IEEE 14-Bus Grid2Op Sandbox Benchmark"
-DATASET_TYPE = "Public simulation benchmark"
+DATASET_NAME = "IEEE 14-Bus Synthetic Benchmark"
+DATASET_TYPE = "Synthetic benchmark (IEEE 14-bus topology)"
 DATASET_DOMAIN = "Power-grid resilience"
 DATASET_LIMITATION = "Simulation-based; not live operational utility data"
-TIMESTEP_MINUTES = 5  # Grid2Op l2rpn_case14_sandbox: 5 minutes per step
+TIMESTEP_MINUTES = 5  # assumed time per simulation step
 
 # ─── ML Configuration ────────────────────────────────────────────
 RANDOM_SEED = 42
@@ -54,14 +54,13 @@ PRIORITY_WEIGHTS = {
 DEFAULT_BUDGET = 2
 MAX_BUDGET = 5
 INTERVENTION_TYPES = [
-    {"id": "reinforce_line", "name": "Reinforce Line", "description": "Increase thermal capacity of a power line", "cost": 1},
-    {"id": "add_redundancy", "name": "Add Redundant Path", "description": "Add an alternative connection between substations", "cost": 1},
+    {"id": "harden_substation", "name": "Harden Substation", "description": "Protect a substation so it survives a failure event", "cost": 1},
 ]
 
 # ─── Server Configuration ────────────────────────────────────────
 API_HOST = "127.0.0.1"
 API_PORT = 5000
-DEBUG = True
+DEBUG = os.environ.get('FLASK_DEBUG', '0') == '1'
 
 # ─── IEEE 14-Bus Network Definition ──────────────────────────────
 # Based on the standard IEEE 14-bus test system

@@ -1,43 +1,28 @@
-
 import * as d3 from 'd3';
 
-export function createNetworkGraph(data, containerEl, options = {}) {
-  const width = options.width || 800;
-  const height = options.height || 600;
-  
-  containerEl.innerHTML = '';
-  const svg = d3.select(containerEl).append('svg')
-    .attr('width', '100%').attr('height', '100%')
-    .attr('viewBox', [0, 0, width, height]);
-    
-  const zoomGroup = svg.append('g');
-  
-  const zoom = d3.zoom().scaleExtent([0.1, 4]).on('zoom', (e) => {
-    zoomGroup.attr('transform', e.transform);
-  });
-  svg.call(zoom);
+const W = 750, H = 560;
+export const riskColor = r => (r >= 0.8 ? '#c45a4a' : r >= 0.6 ? '#c9a84c' : '#4a7c59');
 
-  const simulation = d3.forceSimulation(data.nodes)
-    .force('link', d3.forceLink(data.edges).id(d => d.id).distance(50))
-    .force('charge', d3.forceManyBody().strength(-200))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collide', d3.forceCollide().radius(20));
-    
-  const link = zoomGroup.append('g').attr('stroke', '#a67c52').attr('stroke-opacity', 0.6)
-    .selectAll('line').data(data.edges).join('line').attr('stroke-width', d => Math.max(1, (d.flow || 0)/20));
-    
-  const node = zoomGroup.append('g')
-    .selectAll('circle').data(data.nodes).join('circle')
-    .attr('r', d => d.type === 'generator' ? 12 : 8)
-    .attr('fill', d => d.riskScore > 0.8 ? '#8b2020' : '#4a7c59')
-    .attr('stroke', '#c9a84c').attr('stroke-width', 1.5)
-    .on('click', (e, d) => { if(options.onClick) options.onClick(d); });
-    
-  simulation.on('tick', () => {
-    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-    node.attr('cx', d => d.x).attr('cy', d => d.y);
-  });
-  
+// Draws the grid at the substation coordinates from the API; node colour = risk (0-1).
+export function createNetworkGraph(data, containerEl, { risks = {}, onClick } = {}) {
+  containerEl.replaceChildren();
+  const svg = d3.select(containerEl).append('svg')
+    .attr('width', '100%').attr('height', '100%').attr('viewBox', [0, 0, W, H]);
+  const pos = new Map(data.nodes.map(n => [n.id, n]));
+
+  svg.append('g').attr('stroke', '#a67c52').attr('stroke-opacity', 0.7)
+    .selectAll('line').data(data.edges).join('line')
+    .attr('x1', e => pos.get(e.source).x).attr('y1', e => pos.get(e.source).y)
+    .attr('x2', e => pos.get(e.target).x).attr('y2', e => pos.get(e.target).y)
+    .attr('stroke-width', e => Math.max(1, e.thermal_limit / 40))
+    .append('title').text(e => `Line ${e.id} (limit ${e.thermal_limit} MW)`);
+
+  const node = svg.append('g').selectAll('g').data(data.nodes).join('g')
+    .attr('transform', n => `translate(${n.x},${n.y})`).style('cursor', 'pointer')
+    .on('click', (_, n) => onClick && onClick(n));
+  node.append('circle').attr('r', n => (n.type === 'generator' ? 16 : 12))
+    .attr('fill', n => riskColor(risks[n.id] ?? 0)).attr('stroke', '#c9a84c').attr('stroke-width', 1.5);
+  node.append('text').text(n => n.id).attr('text-anchor', 'middle').attr('dy', '0.35em')
+    .attr('fill', '#0d0f1a').style('font-size', '11px').style('font-weight', 600).style('pointer-events', 'none');
   return svg;
 }

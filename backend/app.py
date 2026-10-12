@@ -37,7 +37,13 @@ DEMO_STATE_ID = int(_high[0]) if len(_high) else 0
 
 def get_state(state_id):
     """A dataset row used as the grid state: (feature dict, actual class id)."""
-    row = DATA.iloc[int(state_id) % len(DATA)]
+    try:
+        sid = int(state_id)
+    except (ValueError, TypeError):
+        raise ValueError(f"State ID must be an integer, got: {state_id}")
+    if sid < 0 or sid >= len(DATA):
+        raise ValueError(f"State ID {sid} out of valid range (0 to {len(DATA) - 1})")
+    row = DATA.iloc[sid]
     return row.drop(DROP_COLS).astype(float).to_dict(), int(row['target'])
 
 
@@ -97,6 +103,8 @@ def forecast(state_id):
                                   for r in sorted(ranking_for(state_id), key=lambda r: -r["risk_score"])[:3]],
         "model_version": MODEL_VERSION, "dataset": DATASET_NAME,
         "dataset_type": DATASET_TYPE, "timestep_minutes": TIMESTEP_MINUTES,
+        "total_states": len(DATA),
+        "valid_range": [0, len(DATA) - 1],
     })
     return jsonify(res)
 
@@ -106,9 +114,15 @@ def get_forecast():
     return forecast(DEMO_STATE_ID)
 
 
-@app.get('/api/forecast/<int:state_id>')
+@app.get('/api/forecast/<state_id>')
 def get_forecast_by_id(state_id):
-    return forecast(state_id)
+    try:
+        sid = int(state_id)
+    except (ValueError, TypeError):
+        return jsonify({"error": f"Invalid state ID: '{state_id}'. Must be an integer between 0 and {len(DATA) - 1}.", "status": "error"}), 400
+    if sid < 0 or sid >= len(DATA):
+        return jsonify({"error": f"State ID {sid} out of valid range (0 to {len(DATA) - 1}).", "status": "error"}), 400
+    return forecast(sid)
 
 
 # ─── Vulnerabilities ─────────────────────────────────────────────
@@ -206,14 +220,17 @@ def get_data_provenance():
         "name": DATASET_NAME, "type": DATASET_TYPE, "domain": DATASET_DOMAIN,
         "limitation": DATASET_LIMITATION, "timestep_minutes": TIMESTEP_MINUTES,
         "model_version": MODEL_VERSION, "random_seed": RANDOM_SEED, "n_rows": len(DATA),
+        "valid_range": [0, len(DATA) - 1],
+        "demo_state_id": DEMO_STATE_ID,
         "n_scenarios": int(DATA["scenario_id"].nunique()),
         "target_classes": TARGET_CLASSES, "priority_weights": PRIORITY_WEIGHTS,
+        "failure_model": "Risk-weighted double substation failures (P(fail) proportional to risk_score + 0.05)",
         "limitations": [
-            "Synthetic data on the IEEE 14-bus topology; not live utility data and not from a power-flow simulator.",
-            "Labels are generated from the same loading features the model sees, so high accuracy reflects the labelling rule, not real forecasting skill.",
-            "Outage simulation is structural (graph connectivity), not electrical.",
-            "Priority weights are heuristic and would need expert calibration.",
-            "Experiment results depend on the assumed failure model (risk-weighted double substation failures).",
+            "Synthetic benchmark on the IEEE 14-bus test topology; not live operational utility data and not from an AC/DC electrical power-flow solver.",
+            "Labels are generated from loading features (rho, overload, disconnect) visible to the model, so high accuracy reflects adherence to the synthetic labelling rule, not real-world grid forecast skill.",
+            "Outage simulation is structural (graph connectivity and static load/gen allocations), not electrical power flow.",
+            "Component priority weights are prototype heuristics (manually selected, not learned or utility-calibrated).",
+            "Intervention evaluation assumes protected substations survive node-failure events under the prototype's scenario generator.",
         ],
     })
 

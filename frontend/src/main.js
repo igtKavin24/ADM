@@ -1,5 +1,4 @@
-
-import { createNav } from './components/nav.js';
+import { createNav, createMobileTopbar } from './components/nav.js';
 import { landingPage } from './pages/landing.js';
 import { overviewPage } from './pages/overview.js';
 import { forecastPage } from './pages/forecast.js';
@@ -11,6 +10,7 @@ import { comparePage } from './pages/compare.js';
 import { experimentPage } from './pages/experiment.js';
 import { methodologyPage } from './pages/methodology.js';
 import { howItWorksPage } from './pages/howItWorks.js';
+import { state } from './state.js';
 
 const routes = {
   '#landing': landingPage,
@@ -26,34 +26,58 @@ const routes = {
   '#howitworks': howItWorksPage
 };
 
-function renderApp() {
+async function renderApp() {
+  // Initialize shared state metadata from backend provenance once
+  await state.init();
+
   const hash = window.location.hash || '#landing';
   const app = document.getElementById('app');
   app.innerHTML = '';
-  
+
   if (hash === '#landing') {
-    app.appendChild(routes[hash]());
+    app.appendChild(landingPage());
     return;
   }
+
+  // Mobile Topbar
+  const topbar = createMobileTopbar();
   
-  // App Shell
+  // App Sidebar
   const nav = createNav(hash);
   app.appendChild(nav);
-  
+
+  // Main Wrapper
+  const wrapper = document.createElement('div');
+  wrapper.className = 'main-wrapper';
+  wrapper.appendChild(topbar);
+
+  // Wire mobile menu toggle
+  const toggleBtn = topbar.querySelector('#mobile-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      nav.classList.toggle('open');
+    });
+  }
+
   const main = document.createElement('main');
   main.className = 'main-content page-enter';
-  
+
   const pageFactory = routes[hash] || overviewPage;
   const pageEl = pageFactory();
   main.appendChild(pageEl);
-  
-  app.appendChild(main);
-  
-  // Trigger reflow for transition
+
+  wrapper.appendChild(main);
+  app.appendChild(wrapper);
+
+  // Animation trigger
   void main.offsetWidth;
   main.classList.add('page-enter-active');
   main.classList.remove('page-enter');
 }
 
-window.addEventListener('hashchange', renderApp);
+window.addEventListener('hashchange', () => {
+  renderApp();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
 renderApp();

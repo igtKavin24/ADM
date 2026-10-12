@@ -1,58 +1,125 @@
+/**
+ * Global Grouped Navigation Component with Mobile Drawer & Clear Route Hierarchy
+ */
+
+const NAV_GROUPS = [
+  {
+    title: 'START',
+    items: [
+      { id: '#overview', name: 'Overview', num: '01' }
+    ]
+  },
+  {
+    title: 'ANALYSE',
+    items: [
+      { id: '#forecast', name: 'Risk forecast', num: '02' },
+      { id: '#network', name: 'Network map', num: '03' },
+      { id: '#investigate', name: 'Component ranking', num: '04' }
+    ]
+  },
+  {
+    title: 'TEST OPTIONS',
+    items: [
+      { id: '#whatif', name: 'What-if outage', num: '05' },
+      { id: '#intervene', name: 'Intervention planner', num: '06' }
+    ]
+  },
+  {
+    title: 'EVALUATE',
+    items: [
+      { id: '#compare', name: 'Strategy comparison', num: '07' },
+      { id: '#experiment', name: 'Experiment lab', num: '08' }
+    ]
+  },
+  {
+    title: 'ABOUT THE MODEL',
+    items: [
+      { id: '#methodology', name: 'Data & methodology', num: '09' },
+      { id: '#howitworks', name: 'How JARASANDHA works', num: '10' }
+    ]
+  }
+];
 
 export function createNav(currentHash) {
-  const nav = document.createElement('nav');
-  nav.className = 'sidebar';
-  nav.style.padding = 'var(--spacing-24) 0';
-  
-  const logo = document.createElement('div');
-  logo.style.padding = '0 var(--spacing-24) var(--spacing-32)';
-  logo.innerHTML = '<h2 class="cinzel" style="color:var(--color-accent-gold); letter-spacing: 2px;">JARASANDHA</h2><div style="font-size:0.7rem; color:var(--color-text-dim); text-transform:uppercase;">Resilience Engine</div>';
-  nav.appendChild(logo);
+  const sidebar = document.createElement('nav');
+  sidebar.className = 'sidebar';
+  sidebar.id = 'app-sidebar';
 
-  const steps = [
-    { id: '#overview', name: 'OVERVIEW', num: '01' },
-    { id: '#forecast', name: 'FORECAST', num: '02' },
-    { id: '#network', name: 'NETWORK', num: '03' },
-    { id: '#investigate', name: 'INVESTIGATE', num: '04' },
-    { id: '#whatif', name: 'WHAT-IF', num: '05' },
-    { id: '#intervene', name: 'INTERVENE', num: '06' },
-    { id: '#compare', name: 'COMPARE', num: '07' },
-    { id: '#experiment', name: 'EXPERIMENT', num: '08' }
-  ];
-
-  const ul = document.createElement('ul');
-  ul.style.listStyle = 'none';
-  ul.style.flex = '1';
-  
-  steps.forEach(step => {
-    const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.href = step.id;
-    a.style.display = 'flex';
-    a.style.alignItems = 'center';
-    a.style.padding = 'var(--spacing-12) var(--spacing-24)';
-    a.style.color = currentHash === step.id ? 'var(--color-accent-gold)' : 'var(--color-text-secondary)';
-    a.style.textDecoration = 'none';
-    a.style.fontSize = '0.9rem';
-    a.style.fontFamily = 'Cinzel, serif';
-    a.style.fontWeight = '600';
-    a.style.borderLeft = currentHash === step.id ? '3px solid var(--color-accent-gold)' : '3px solid transparent';
-    if(currentHash === step.id) a.style.background = 'rgba(201, 168, 76, 0.05)';
-    
-    a.innerHTML = `<span style="opacity:0.5; margin-right:var(--spacing-12); font-size:0.75rem;">${step.num}</span> ${step.name}`;
-    li.appendChild(a);
-    ul.appendChild(li);
-  });
-  nav.appendChild(ul);
-  
-  const bottomLinks = document.createElement('div');
-  bottomLinks.style.padding = 'var(--spacing-24)';
-  bottomLinks.style.borderTop = '1px solid var(--color-border)';
-  bottomLinks.innerHTML = `
-    <a href="#methodology" style="display:block; color:var(--color-text-dim); text-decoration:none; font-size:0.8rem; margin-bottom:8px;">METHODOLOGY</a>
-    <a href="#howitworks" style="display:block; color:var(--color-text-dim); text-decoration:none; font-size:0.8rem;">HOW IT WORKS</a>
+  // Brand Header
+  const brand = document.createElement('div');
+  brand.className = 'sidebar-brand';
+  brand.innerHTML = `
+    <h2 class="brand-font">JARASANDHA</h2>
+    <div class="tagline">Grid Resilience Engine</div>
+    <div class="sidebar-status-pill">
+      <span class="sidebar-status-dot"></span>
+      <span>Synthetic IEEE 14-bus</span>
+    </div>
   `;
-  nav.appendChild(bottomLinks);
-  
-  return nav;
+  sidebar.appendChild(brand);
+
+  // Nav Groups
+  const groupsUl = document.createElement('ul');
+  groupsUl.className = 'nav-groups';
+
+  NAV_GROUPS.forEach(group => {
+    const groupLi = document.createElement('li');
+    
+    const titleEl = document.createElement('div');
+    titleEl.className = 'nav-group-title';
+    titleEl.textContent = group.title;
+    groupLi.appendChild(titleEl);
+
+    const itemsUl = document.createElement('ul');
+    itemsUl.style.listStyle = 'none';
+
+    group.items.forEach(item => {
+      const itemLi = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = item.id;
+      a.className = `nav-item-link ${currentHash === item.id ? 'active' : ''}`;
+      a.innerHTML = `<span class="nav-item-num">${item.num}</span><span>${item.name}</span>`;
+      
+      // Auto-close sidebar on mobile item tap
+      a.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+      });
+
+      itemLi.appendChild(a);
+      itemsUl.appendChild(itemLi);
+    });
+
+    groupLi.appendChild(itemsUl);
+    groupsUl.appendChild(groupLi);
+  });
+  sidebar.appendChild(groupsUl);
+
+  // Footer Links
+  const footer = document.createElement('div');
+  footer.className = 'nav-footer';
+  footer.innerHTML = `
+    <div style="font-size: 0.72rem; color: var(--color-text-muted); margin-bottom: 8px;">RESEARCH PROTOTYPE</div>
+    <a href="#landing" class="nav-footer-link">← Return to welcome</a>
+    <a href="#methodology" class="nav-footer-link">Scientific provenance & limits</a>
+  `;
+  sidebar.appendChild(footer);
+
+  return sidebar;
+}
+
+export function createMobileTopbar() {
+  const topbar = document.createElement('header');
+  topbar.className = 'app-topbar';
+  topbar.innerHTML = `
+    <button class="mobile-menu-btn" id="mobile-toggle" aria-label="Toggle navigation">
+      <span>☰</span> <span>Menu</span>
+    </button>
+    <div style="font-family:'Cinzel',serif; color:var(--color-accent-gold); font-weight:600; font-size:1.05rem;">
+      JARASANDHA
+    </div>
+    <div style="font-size:0.75rem; color:var(--color-text-muted);">
+      IEEE 14-bus
+    </div>
+  `;
+  return topbar;
 }

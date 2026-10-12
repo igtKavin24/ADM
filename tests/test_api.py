@@ -42,3 +42,35 @@ def test_hardening_never_hurts(client):
 def test_experiment_covers_all_strategies(client):
     r = client.post("/api/experiments/run", json={"budget": 2, "n_scenarios": 50}).get_json()
     assert set(r["results"]) == {"random", "degree_based", "centrality_based", "ml_risk", "jarasandha_optimized"}
+
+
+def test_forecast_invalid_state_id_returns_400(client):
+    assert client.get("/api/forecast/999999").status_code == 400
+    assert client.get("/api/forecast/-1").status_code == 400
+    assert client.get("/api/forecast/notanumber").status_code == 400
+
+
+def test_forecast_contains_valid_range_and_total(client):
+    r = client.get("/api/forecast").get_json()
+    assert "valid_range" in r
+    assert "total_states" in r
+    assert r["valid_range"][0] == 0
+    assert r["valid_range"][1] == r["total_states"] - 1
+
+
+def test_provenance_contains_truthful_metadata(client):
+    r = client.get("/api/data/provenance")
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["n_rows"] > 0
+    assert "limitations" in d
+    assert len(d["limitations"]) >= 4
+    assert "IEEE 14-bus" in d["type"] or "IEEE" in d["type"]
+
+
+def test_vulnerabilities_accepts_state_param(client):
+    r1 = client.get("/api/vulnerabilities?state=0")
+    assert r1.status_code == 200
+    d1 = r1.get_json()
+    assert d1["state_id"] == 0
+    assert len(d1["vulnerabilities"]) == 14

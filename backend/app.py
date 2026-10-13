@@ -17,6 +17,8 @@ from backend.data.preprocessor import load_dataset, DROP_COLS
 from backend.graph.network import PowerGrid
 from backend.graph.analysis import full_analysis
 from backend.graph.simulation import OutageSimulator
+from backend.graph.cascade import run_cascade
+from backend.graph.labels import bus_labels_map, line_labels_map
 from backend.ml.model import predict, get_model_metrics
 from backend.ml.explainer import get_feature_importance, explain_prediction
 from backend.engine.priority import rank_nodes
@@ -69,16 +71,21 @@ def server_error(e):
 @app.get('/api/network')
 def get_network():
     nodes = []
+    bus_labels = bus_labels_map()
+    line_labels = line_labels_map()
     for sub in IEEE14_SUBSTATIONS:
         node = dict(sub)
+        node["display_label"] = bus_labels[sub["id"]]
         node["generators"] = [g for g in IEEE14_GENERATORS if g["sub"] == sub["id"]]
         node["loads"] = [l for l in IEEE14_LOADS if l["sub"] == sub["id"]]
         nodes.append(node)
     edges = [{"id": l["id"], "source": l["from"], "target": l["to"],
+              "display_label": line_labels[l["id"]],
               "thermal_limit": l["thermal_limit"], "impedance": l["impedance"]} for l in IEEE14_LINES]
     return jsonify({"nodes": nodes, "edges": edges, "metadata": {
         "name": "IEEE 14-Bus Test System", "substations": len(nodes), "lines": len(edges),
-        "generators": len(IEEE14_GENERATORS), "loads": len(IEEE14_LOADS)}})
+        "generators": len(IEEE14_GENERATORS), "loads": len(IEEE14_LOADS),
+        "bus_labels": bus_labels, "line_labels": line_labels}})
 
 
 @app.get('/api/network/metrics')
@@ -159,6 +166,22 @@ def simulate_outage():
         raise ValueError(f"Invalid component type: {kind}")
     result["terminology_note"] = ("Structural simulation on the grid graph. Load is lost at failed substations "
                                   "and in islands without generation. This is NOT an electrical power-flow model.")
+    return jsonify(result)
+
+
+@app.post('/api/simulation/cascade')
+def simulate_cascade():
+    data = request.get_json(silent=True) or {}
+    if data.get("id") is None:
+        raise ValueError("Component ID required for cascade simulation")
+    try:
+        cid = int(data["id"])
+    except (ValueError, TypeError):
+        raise ValueError("Component ID must be an integer")
+    kind = data.get("type", "bus")
+    if kind not in ("bus", "line"):
+        raise ValueError(f"type must be 'bus' or 'line', got '{kind}'")
+    result = run_cascade({"type": kind, "id": cid})
     return jsonify(result)
 
 

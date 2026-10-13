@@ -19,6 +19,7 @@ export const api = {
   getForecastById: (id) => request(`/forecast/${id}`),
   getVulnerabilities: (stateId) => request(stateId !== undefined ? `/vulnerabilities?state=${stateId}` : '/vulnerabilities'),
   simulateOutage: (data) => request('/simulation/outage', data),
+  simulateCascade: (data) => request('/simulation/cascade', data),
   getInterventions: () => request('/interventions'),
   evaluateInterventions: (ids) => request('/interventions/evaluate', { interventions: ids }),
   optimizeInterventions: (budget) => request('/interventions/optimize', { budget }),

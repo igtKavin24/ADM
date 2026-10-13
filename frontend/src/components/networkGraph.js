@@ -10,6 +10,7 @@ export const priorityScoreColor = p => (p >= 0.7 ? '#cc5643' : p >= 0.45 ? '#d4a
  * Interactive D3 Network Topology Graph
  * Supports:
  * - Clear mode encoding: 'risk' (incident-line loading) or 'priority' (heuristic priority)
+ * - Cascade overlay: highlight tripped nodes/lines per round
  * - Zoom & Reset view buttons
  * - Selected node highlight ring
  * - Accessible SVG elements & tooltips
@@ -73,12 +74,12 @@ export function createNetworkGraph(data, containerEl, {
 
   zoomInBtn.onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 1.3);
   zoomOutBtn.onclick = () => svg.transition().duration(250).call(zoom.scaleBy, 0.7);
-  resetBtn.onclick = () => svg.transition().duration(250).call(zoom.transform, d3.zoomIdentity);
+  resetBtn.onclick  = () => svg.transition().duration(250).call(zoom.transform, d3.zoomIdentity);
 
   const pos = new Map(data.nodes.map(n => [n.id, n]));
 
   // Transmission Lines / Edges
-  g.append('g')
+  const edgeLines = g.append('g')
     .attr('class', 'edges')
     .selectAll('line')
     .data(data.edges)
@@ -90,8 +91,10 @@ export function createNetworkGraph(data, containerEl, {
     .attr('stroke', '#a67c52')
     .attr('stroke-opacity', 0.6)
     .attr('stroke-width', e => Math.max(1.5, Math.min(5, e.thermal_limit / 40)))
-    .append('title')
-    .text(e => `Line ${e.id} (${pos.get(e.source).name} ↔ ${pos.get(e.target).name}): Thermal limit ${e.thermal_limit} MW`);
+    .attr('data-line-id', e => e.id);
+
+  edgeLines.append('title')
+    .text(e => `${e.display_label || ('Line ' + (e.id + 1))} (${pos.get(e.source).name} ↔ ${pos.get(e.target).name}): Thermal limit ${e.thermal_limit} MW`);
 
   // Substation Nodes
   const nodeG = g.append('g')
@@ -103,7 +106,8 @@ export function createNetworkGraph(data, containerEl, {
     .style('cursor', 'pointer')
     .attr('tabindex', 0)
     .attr('role', 'button')
-    .attr('aria-label', n => `${n.name} (${n.type})`)
+    .attr('aria-label', n => `${n.display_label || n.name} (${n.type})`)
+    .attr('data-node-id', n => n.id)
     .on('click', (_, n) => onClick && onClick(n))
     .on('keydown', (e, n) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -135,9 +139,22 @@ export function createNetworkGraph(data, containerEl, {
     .attr('stroke', n => (n.type === 'generator' ? '#e0c273' : '#a67c52'))
     .attr('stroke-width', n => (n.type === 'generator' ? 2.5 : 1.5));
 
-  // Node number / ID label
+  // Cascade overlay marker (X for tripped bus)
   nodeG.append('text')
-    .text(n => n.id)
+    .attr('class', 'node-trip-marker')
+    .text('✕')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.4em')
+    .attr('fill', '#ff4040')
+    .style('font-size', '16px')
+    .style('font-weight', '900')
+    .style('pointer-events', 'none')
+    .style('display', 'none');
+
+  // Node number / ID label (hidden during cascade trip state)
+  nodeG.append('text')
+    .attr('class', 'node-id-label')
+    .text(n => n.display_label ? n.display_label.replace('Bus ', '') : n.id)
     .attr('text-anchor', 'middle')
     .attr('dy', '0.35em')
     .attr('fill', '#0a0d17')
@@ -148,7 +165,56 @@ export function createNetworkGraph(data, containerEl, {
 
   // Node tooltip title
   nodeG.append('title')
-    .text(n => `${n.name} (ID: ${n.id}, Type: ${n.type})\nIncident Line Loading Risk: ${( (risks[n.id] ?? 0) * 100 ).toFixed(1)}%\nPriority Score: ${((priorities[n.id] ?? 0)).toFixed(3)}`);
+    .text(n => `${n.display_label || n.name} (ID: ${n.id}, Type: ${n.type})\nIncident Line Loading Risk: ${((risks[n.id] ?? 0) * 100).toFixed(1)}%\nPriority Score: ${((priorities[n.id] ?? 0)).toFixed(3)}`);
+
+  // ── Cascade overlay helpers ──────────────────────────────────────────────
+  function applyCascadeRound(round) {
+    if (!round) {
+      // Reset to normal state
+      nodeG.selectAll('.node-circle')
+        .attr('fill', n => {
+          if (encoding === 'priority') return priorityScoreColor(priorities[n.id] ?? 0);
+          return loadingRiskColor(risks[n.id] ?? 0);
+        })
+        .attr('opacity', 1);
+      nodeG.selectAll('.node-trip-marker').style('display', 'none');
+      nodeG.selectAll('.node-id-label').style('display', null);
+      edgeLines
+        .attr('stroke', '#a67c52')
+        .attr('stroke-opacity', 0.6)
+        .attr('stroke-dasharray', null);
+      return;
+    }
+
+    // Collect tripped bus/line sets
+    const trippedBusIds  = new Set((round.tripped_buses  || []).map(b => b.id));
+    const trippedLineIds = new Set((round.tripped_lines  || []).map(l => l.id));
+    const activeBusIds   = new Set(round.active_buses  || []);
+    const activeLineIds  = new Set(round.active_lines  || []);
+
+    nodeG.selectAll('.node-circle')
+      .attr('fill', n => {
+        if (trippedBusIds.has(n.id)) return '#ff2020';
+        if (!activeBusIds.has(n.id)) return '#3a3d4a';  // already-tripped (greyed)
+        if (encoding === 'priority') return priorityScoreColor(priorities[n.id] ?? 0);
+        return loadingRiskColor(risks[n.id] ?? 0);
+      })
+      .attr('opacity', n => activeBusIds.has(n.id) || trippedBusIds.has(n.id) ? 1 : 0.35);
+
+    nodeG.selectAll('.node-trip-marker')
+      .style('display', n => trippedBusIds.has(n.id) ? 'block' : 'none');
+    nodeG.selectAll('.node-id-label')
+      .style('display', n => trippedBusIds.has(n.id) ? 'none' : null);
+
+    edgeLines
+      .attr('stroke', e => {
+        if (trippedLineIds.has(e.id)) return '#ff2020';
+        if (!activeLineIds.has(e.id)) return '#3a3d4a';
+        return '#a67c52';
+      })
+      .attr('stroke-opacity', e => activeLineIds.has(e.id) || trippedLineIds.has(e.id) ? 0.75 : 0.25)
+      .attr('stroke-dasharray', e => (!activeLineIds.has(e.id) && !trippedLineIds.has(e.id)) ? '4 3' : null);
+  }
 
   return {
     svg,
@@ -157,6 +223,7 @@ export function createNetworkGraph(data, containerEl, {
         .style('display', n => (n.id === newSelectedId ? 'block' : 'none'));
     },
     setEncoding: (newEncoding) => {
+      encoding = newEncoding;
       nodeG.selectAll('.node-circle')
         .attr('fill', n => {
           if (newEncoding === 'priority') {
@@ -164,6 +231,7 @@ export function createNetworkGraph(data, containerEl, {
           }
           return loadingRiskColor(risks[n.id] ?? 0);
         });
-    }
+    },
+    setCascadeRound: applyCascadeRound,
   };
 }
